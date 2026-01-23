@@ -27,6 +27,10 @@ make bcm2712_defconfig
 
 Tip: If you want to customize anything (optional), run make menuconfig now.
 
+### Enable generic S1G support in the Wi-Fi stack
+./scripts/config --enable CONFIG_IEEE80211_S1G
+./scripts/config --enable CONFIG_MAC80211_S1G
+
 ## Phase 3: Compile and Install the New Kernel
 Now you must build the kernel. This process replaces your standard kernel with the one capable of supporting the MM8108.
 
