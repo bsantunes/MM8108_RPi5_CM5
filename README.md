@@ -1,125 +1,174 @@
-# Morse Micro 8108
-Compiling instructions for kernel, MM8108 driver and patches with CM5 or RPi5
+# Morse Micro Wi-Fi HaLow Driver Integration Guide (RPi CM5)
+This guide details how to build the Morse Micro Wi-Fi HaLow driver "in-tree" for the Raspberry Pi Compute Module 5 (BCM2712).
 
-## Phase 1: Prepare the Build Environment
-First, update your system and install the tools required to build the Linux kernel.
+Target Hardware: Raspberry Pi 5 / CM5 Target Device: USB Wi-Fi HaLow Adapter (Morse Micro MM6108) Kernel Branch: mm/rpi-6.6.31/1.15.x
+
+## 1. Install Prerequisites
+Update your system and install the required build tools.
 ```
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y git bc build-essential libncurses5-dev bison flex libssl-dev libelf-dev
+sudo apt update
+sudo apt install -y git bc bison flex libssl-dev make libc6-dev libncurses5-dev
+```
+## 2. Clone the Kernel and Driver
+We must use the specific Morse Micro branch that contains the required S1G (Sub-1 GHz) stack patches.
+
+### A. Clone the Kernel
+```
+# Clone the specific Morse Micro branch (approx. 300MB)
+git clone --depth 1 -b mm/rpi-6.6.31/1.15.x https://github.com/MorseMicro/rpi-linux.git linux-morse
+
+cd linux-morse
+```
+### B. Setup the Driver Directory
+We will manually construct the driver directory inside the kernel tree to ensure all submodules are present.
+```
+# 1. Create the destination folder
+mkdir -p drivers/net/wireless/morse
+
+# 2. Clone the main driver source
+# (Assuming you are still inside linux-morse/)
+git clone https://github.com/MorseMicro/morse_driver.git temp_driver
+cp -r temp_driver/* drivers/net/wireless/morse/
+rm -rf temp_driver
+
+# 3. Clone the Rate Control Submodule (Crucial Fix)
+# The driver will fail to build without this specific submodule
+git clone https://github.com/MorseMicro/mm_rate_control.git drivers/net/wireless/morse/mmrc-submodule
+```
+## 3. Patch the Source Code
+The current driver version has minor type mismatches (enum vs uint) that cause newer compilers (GCC 12+) to fail. Apply these patches to fix them.
+
+```
+# Fix 1: Type mismatch in debug.c
+sed -i 's/enum morse_feature_id id/u32 id/' drivers/net/wireless/morse/debug.c
+
+# Fix 2: Type mismatch in firmware.c
+sed -i 's/enum morse_config_test_mode test_mode/uint test_mode/' drivers/net/wireless/morse/firmware.c
+```
+## 4. Register the Driver in Kernel Build System
+We need to tell the kernel build system that the new driver exists.
+
+### A. Edit drivers/net/wireless/Kconfig
+Add the source line before the endmenu tag.
+
+```
+# Append the config source to the wireless Kconfig
+sed -i '/endmenu/i source "drivers/net/wireless/morse/Kconfig"' drivers/net/wireless/Kconfig
 ```
 
-## Phase 2: Get the Patched Kernel Source
-Morse Micro maintains a fork of the Raspberry Pi Linux kernel that already includes the necessary mac80211 patches for HaLow support. This is much easier than manually patching the official kernel.
-1. Clone the Morse Micro Kernel Fork: You need the branch specifically for kernel 6.6 (rpi-6.6.y). Note: This download is large (over 1GB).
+### B. Edit drivers/net/wireless/Makefile
+Add the object build instruction to the end of the file.
+
 ```
-mkdir -p ~/morse-build
-cd ~/morse-build
-git clone --depth 1 --branch rpi-6.6.y https://github.com/MorseMicro/rpi-linux.git linux
+echo "obj-\$(CONFIG_WLAN_VENDOR_MORSE) += morse/" >> drivers/net/wireless/Makefile
 ```
 
-2. Prepare the Kernel Configuration: Use your current running configuration as a base to ensure all your CM5 hardware works.
+## 5. Configure the Kernel (CM5 + S1G)
+We will load the default Raspberry Pi 5 configuration and then forcefully enable the Wi-Fi HaLow features.
+
 ```
-cd linux
-# Load the default configuration for Pi 5 / CM5 (bcm2712)
+# 1. Clean and load CM5 defaults (bcm2712)
+make mrproper
 KERNEL=kernel_2712
 make bcm2712_defconfig
-```
 
-Tip: If you want to customize anything (optional), run make menuconfig now.
-
-### Enable generic S1G support in the Wi-Fi stack
-./scripts/config --enable CONFIG_IEEE80211_S1G
+# 2. Enable S1G (HaLow) Support in mac80211
 ./scripts/config --enable CONFIG_MAC80211_S1G
+./scripts/config --enable CONFIG_IEEE80211_S1G
 
-## Phase 3: Compile and Install the New Kernel
-Now you must build the kernel. This process replaces your standard kernel with the one capable of supporting the MM8108.
+# 3. Enable the Morse Micro Driver
+./scripts/config --enable CONFIG_WLAN_VENDOR_MORSE
+./scripts/config --set-str CONFIG_MORSE_COUNTRY "US"  # Change to "EU" or "JP" if needed
 
-1. Build the Kernel, Modules, and Device Tree: The -j$(nproc) flag tells the compiler to use all CPU cores to speed this up.
+# 4. Update the configuration file
+make olddefconfig
+```
+Verification: Run this to confirm the settings stuck:
+
+```
+grep -E "S1G|MORSE" .config
+```
+Output should show CONFIG_MAC80211_S1G=y and CONFIG_WLAN_VENDOR_MORSE=y (or m).
+
+## 6. Build the Kernel
+Compile the kernel image, modules, and device trees. This takes 10-20 minutes on a Pi 5.
+
 ```
 make -j$(nproc) Image.gz modules dtbs
 ```
-
-2. Install the Modules:
+## 7. Install Kernel and Firmware
+### A. Install Modules
 ```
 sudo make modules_install
 ```
+### B. Install Kernel Image & DTBs
+We install the kernel as kernel_morse.img to avoid overwriting the stock kernel immediately.
 
-3. Install the Kernel and Device Tree Blobs: Backup your old kernel and copy the new one to the boot partition.
 ```
+# Install Kernel Image
+sudo cp arch/arm64/boot/Image.gz /boot/firmware/kernel_morse.img
+
+# Install Device Tree Blobs (DTBs)
 sudo cp arch/arm64/boot/dts/broadcom/*.dtb /boot/firmware/
 sudo cp arch/arm64/boot/dts/overlays/*.dtbo* /boot/firmware/overlays/
-sudo cp arch/arm64/boot/Image.gz /boot/firmware/kernel_2712.img
 ```
 
-(Note: On Pi 5/CM5, the 64-bit kernel image is usually named kernel_2712.img in /boot/firmware/. If your system uses a different naming convention, check /boot/firmware/config.txt to confirm).
+### C. Install Firmware (CRITICAL STEP)
+The driver will register but fail to start the interface if these files are missing.
 
-4. Reboot: Reboot to load your newly compiled kernel.
+```
+# Create firmware directory
+sudo mkdir -p /lib/firmware/morse
+
+# Copy firmware files from the driver source
+sudo cp drivers/net/wireless/morse/firmware/*.bin /lib/firmware/morse/
+```
+
+## 8. Configure Boot and Reboot
+Tell the Pi to boot your new kernel.
+
+1. Open the config file:
+
+```
+sudo nano /boot/firmware/config.txt
+```
+
+2. Add or modify the kernel line under [all]:
+
+```
+[all]
+kernel=kernel_morse.img
+```
+3. Reboot:
+
 ```
 sudo reboot
 ```
+## 9. Verification
+After rebooting, verify the driver is working.
 
-5. Verify Kernel Version: After rebooting, check that you are running your custom kernel (the date should match today):
-```
-uname -a
-```
-
-## Phase 4: Compile the MM8108 Driver
-Now that you have the patched kernel running, you can build the actual driver.
-1. Clone the Driver Source:
-```
-cd ~/morse-build
-git clone https://github.com/MorseMicro/morse_driver.git
-cd morse_driver
-```
-
-2. Compile the Driver: You must point the build to your kernel source directory.
-```
-make KERNEL_SRC=~/morse-build/linux
-```
-
-If successful, this will create morse.ko and mac80211.ko (or similar modules) in the directory.
-3. Install the Driver Modules:
+1. Check Kernel Version:
 
 ```
-sudo make KERNEL_SRC=~/morse-build/linux modules_install
-sudo depmod -a
+uname -r
+# Should show the new version (e.g., 6.6.31-v8-16k+)
+```
+2. Check Driver Load:
+
+```
+dmesg | grep -i morse
+# Should see "Morse Micro Dot11ah driver registration"
 ```
 
-## Phase 5: Install Firmware
-The driver needs binary firmware to operate the chip.
-1. Clone the Firmware Repo:
+3. Check Interface:
+
 ```
-cd ~/morse-build
-git clone https://github.com/MorseMicro/morse-firmware.git
+ip link
+# Look for a new interface (e.g., wlan1, wlan2)
 ```
 
-2. Copy Firmware to System Path:
-```
-sudo mkdir -p /lib/firmware/morse
-sudo cp morse-firmware/firmware/mm8108*.bin /lib/firmware/morse/
-```
+4. Scan for Networks (Test):
 
-Note: Check the morse_driver readme or dmesg logs if it complains about a specific missing filename (e.g., mm8108-bd.bin), and rename/copy the closest matching firmware file from the repo if necessary.
-
-## Phase 6: Load and Test
-Load the Module:
 ```
-sudo modprobe morse
+sudo iw dev wlan1 scan | grep SSID
 ```
-
-2. Check dmesg: Look for success messages or errors.
-```
-dmesg | grep morse
-```
-
-3. Verify Network Interface: You should now see a new wireless interface (often wlan1 or similar).
-```
-ip link show
-```
-
-### Troubleshooting Common CM5 Issues
-Missing mac80211 symbols: If modprobe fails complaining about "unknown symbols", it means you are likely still booted into the stock kernel, not your patched one. Ensure uname -a shows your custom build date.
-
-Firmware Missing: If dmesg says "failed to load firmware", check the exact filename it is looking for and ensure that exact name exists in /lib/firmware/morse/.
-
-Would you like me to explain how to configure the hostapd (Access Point mode) for this driver once you have it loaded?
