@@ -203,7 +203,7 @@
 
     - name: Install Morse Micro Tools
       shell: |
-        curl -L -O https://raw.githubusercontent.com/bsantunes/MM6108_RPi5_CM5/refs/heads/main/install_deb_morse.sh
+        curl -L -O https://raw.githubusercontent.com/bsantunes/MM8108_RPi5_CM5/refs/heads/main/install_deb_morse.sh
         chmod +x install_deb_morse.sh
         ./install_deb_morse.sh
       args:
