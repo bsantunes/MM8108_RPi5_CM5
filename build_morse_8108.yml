@@ -1,0 +1,212 @@
+---
+- name: Build and Install Morse Micro 8108 Driver (Debian 13 Optimized)
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    build_dir: "/home/pi/morse-build_8108"
+    kernel_branch: "mm/rpi-6.6.31/1.15.x"
+    kernel_version: "kernel_2712"
+    custom_suffix: "-8108"
+    kernel_repo: "https://github.com/MorseMicro/rpi-linux.git"
+    driver_repo: "https://github.com/MorseMicro/morse_driver.git"
+    firmware_repo: "https://github.com/MorseMicro/morse-firmware.git"
+    halow_tools_repo: "https://github.com/bsantunes/Halow"
+
+  tasks:
+    - name: Install build dependencies
+      apt:
+        name:
+          - git
+          - bc
+          - bison
+          - flex
+          - libssl-dev
+          - make
+          - libc6-dev
+          - libncurses5-dev
+        state: present
+        update_cache: yes
+      tags: [dependencies]
+    
+    - name: Create build directory
+      file:
+        path: "{{ build_dir }}"
+        state: directory
+        mode: '0755'
+      tags: [setup]
+
+    - name: Clone Kernel (Morse Micro Branch)
+      git:
+        repo: "{{ kernel_repo }}"
+        dest: "{{ build_dir }}/linux-morse"
+        version: "{{ kernel_branch }}"
+        depth: 1
+      tags: [setup]
+
+    - name: Create driver directory in kernel tree
+      file:
+        path: "{{ build_dir }}/linux-morse/drivers/net/wireless/morse"
+        state: directory
+        owner: pi
+
+    - name: Clone Morse Driver to temp location
+      git:
+        repo: "{{ driver_repo }}"
+        dest: "{{ build_dir }}/temp_driver"
+        depth: 1
+
+    - name: Copy driver files to kernel tree
+      shell: "cp -r {{ build_dir }}/temp_driver/* {{ build_dir }}/linux-morse/drivers/net/wireless/morse/"
+
+    - name: Fix type mismatch in debug.c
+      replace:
+        path: "{{ build_dir }}/linux-morse/drivers/net/wireless/morse/debug.c"
+        regexp: 'enum morse_feature_id id'
+        replace: 'u32 id'
+
+    - name: Fix type mismatch in firmware.c
+      replace:
+        path: "{{ build_dir }}/linux-morse/drivers/net/wireless/morse/firmware.c"
+        regexp: 'enum morse_config_test_mode test_mode'
+        replace: 'uint test_mode'
+
+    - name: Add driver source to Wireless Kconfig
+      lineinfile:
+        path: "{{ build_dir }}/linux-morse/drivers/net/wireless/Kconfig"
+        insertbefore: 'endmenu'
+        line: 'source "drivers/net/wireless/morse/Kconfig"'
+
+    - name: Add driver object to Wireless Makefile
+      lineinfile:
+        path: "{{ build_dir }}/linux-morse/drivers/net/wireless/Makefile"
+        line: 'obj-$(CONFIG_WLAN_VENDOR_MORSE) += morse/'
+
+    - name: Clean and Load CM5 Default Config
+      shell: |
+        make mrproper
+        make bcm2712_defconfig
+      args:
+        chdir: "{{ build_dir }}/linux-morse"
+      environment:
+        KERNEL: kernel_2712
+
+    - name: Apply Custom Morse Configuration
+      blockinfile:
+        path: "{{ build_dir }}/linux-morse/.config"
+        marker: "# {mark} ANSIBLE MANAGED MORSE CONFIG"
+        block: |
+          CONFIG_LOCALVERSION="-8108"
+          CONFIG_WLAN_VENDOR_MORSE=m
+          CONFIG_MORSE_SDIO=y
+          CONFIG_MORSE_USB=y
+          CONFIG_MORSE_SDIO_ALIGNMENT=2
+          # CONFIG_MORSE_SPI is not set
+          CONFIG_MORSE_USER_ACCESS=y
+          CONFIG_MORSE_VENDOR_COMMAND=y
+          CONFIG_MORSE_COUNTRY="EU"
+          CONFIG_MORSE_DEBUG_MASK=8
+          CONFIG_MORSE_SDIO_RESET_TIME=400
+          CONFIG_MORSE_POWERSAVE_MODE=2
+          # CONFIG_MORSE_DHCP_OFFLOAD is not set
+          # CONFIG_MORSE_ARP_OFFLOAD is not set
+          CONFIG_MORSE_WATCHDOG_RESET_DEFAULT_DISABLED=y
+          # CONFIG_MORSE_DISABLE_CHANNEL_SURVEY is not set
+          # CONFIG_MORSE_MONITOR is not set
+          # CONFIG_MORSE_DEBUGFS is not set
+
+    - name: Validate Configuration (olddefconfig)
+      shell: "make olddefconfig"
+      args:
+        chdir: "{{ build_dir }}/linux-morse"
+
+    - name: Build Kernel Image, Modules, and DTBs
+      shell: "make -j$(nproc) Image.gz modules dtbs"
+      args:
+        chdir: "{{ build_dir }}/linux-morse"
+
+    - name: Install Modules
+      shell: "make modules_install"
+      args:
+        chdir: "{{ build_dir }}/linux-morse"
+
+    - name: Install Kernel Image
+      copy:
+        src: "{{ build_dir }}/linux-morse/arch/arm64/boot/Image.gz"
+        dest: "/boot/firmware/kernel_morse.img"
+        remote_src: yes
+
+    - name: Install DTBs
+      shell: "cp arch/arm64/boot/dts/broadcom/*.dtb /boot/firmware/"
+      args:
+        chdir: "{{ build_dir }}/linux-morse"
+
+    - name: Install Overlays
+      shell: "cp arch/arm64/boot/dts/overlays/*.dtbo* /boot/firmware/overlays/"
+      args:
+        chdir: "{{ build_dir }}/linux-morse"
+    
+    - name: Firmware INSTALLATION
+      block:
+        - name: Ensure firmware directory exists
+          file:
+            path: /lib/firmware/morse
+            state: directory
+
+        - name: Clone separate Firmware Repository
+          git:
+            repo: "{{ firmware_repo }}"
+            dest: "{{ build_dir }}/morse-firmware"
+            depth: 1
+
+        - name: Install Specific Firmware Files
+          copy:
+              src: "{{ build_dir }}/morse-firmware/{{ item.path }}"
+              dest: "/lib/firmware/morse/{{ item.name }}"
+              remote_src: yes
+          loop:
+              - { path: 'bcf/morsemicro/bcf_boardtype_0804.bin', name: 'bcf_boardtype_0804.bin' }
+              - { path: 'firmware/mm8108b2-rl.bin',      name: 'mm8108b2-rl.bin' }
+              - { path: 'firmware/mm8108b2-flm-rl.bin',  name: 'mm8108b2-flm-rl.bin' }
+              - { path: 'firmware/mm8108b2-tlm-rl.bin',  name: 'mm8108b2-tlm-rl.bin' }
+      tags: [firmware]
+
+    - name: Update config.txt to boot new kernel
+      lineinfile:
+        path: /boot/firmware/config.txt
+        regexp: '^kernel='
+        line: 'kernel=kernel_morse.img'
+        state: present
+      tags: [bootconfig]
+          
+    - name: Build and Install Custom HaLow Tools (Scripts)
+      block:
+        - name: Clone HaLow Tools Repo
+          git:
+            repo: "{{ halow_tools_repo }}"
+            dest: "{{ build_dir }}/halow_tools"
+            version: main
+            update: yes
+            force: yes
+
+        - name: Make Scripts Executable and Link to /usr/local/bin
+          shell: |
+            # Make all files in the repo executable
+            chmod +x wifi-*.sh halow
+            
+            # Create symbolic links in /usr/local/bin for every file in this dir
+            # This allows you to run the scripts from anywhere
+            ln -sf {{ build_dir }}/halow_tools/* /usr/local/bin/
+          args:
+            chdir: "{{ build_dir }}/halow_tools"
+      tags: [halow_tools]
+
+    - name: Notify user to reboot
+      debug:
+        msg: 
+          - "------------------------------------------------------------"
+          - "KERNEL BUILD AND INSTALLATION SUCCESSFUL!"
+          - "Custom Kernel: {{ kernel_version }}{{ custom_suffix }}"
+          - "Please run 'sudo reboot' manually to apply changes."
+          - "------------------------------------------------------------"
+      tags: [always]
