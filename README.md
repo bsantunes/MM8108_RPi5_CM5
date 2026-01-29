@@ -1,7 +1,7 @@
-# Morse Micro Wi-Fi HaLow Driver Integration Guide (RPi CM5)
+# Morse Micro Wi-Fi HaLow Driver 8108 Integration Guide (RPi5 CM5)
 This guide details how to build the Morse Micro Wi-Fi HaLow driver "in-tree" for the Raspberry Pi Compute Module 5 (BCM2712).
 
-Target Hardware: Raspberry Pi 5 / CM5 Target Device: USB Wi-Fi HaLow Adapter (Morse Micro MM6108) Kernel Branch: mm/rpi-6.6.31/1.15.x
+Target Hardware: Raspberry Pi 5 / CM5 Target Device: USB Wi-Fi HaLow Adapter (Morse Micro MM8108) Kernel Branch: mm/rpi-6.6.31/1.15.x
 
 ## 1. Install Prerequisites
 Update your system and install the required build tools.
