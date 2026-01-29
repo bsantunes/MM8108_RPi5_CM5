@@ -72,21 +72,17 @@ make mrproper
 KERNEL=kernel_2712
 make bcm2712_defconfig
 
-# 2. Enable S1G (HaLow) Support in mac80211
-./scripts/config --enable CONFIG_MAC80211_S1G
-./scripts/config --enable CONFIG_IEEE80211_S1G
-
-# 3. Enable the Morse Micro Driver
+# 2. Enable the Morse Micro Driver
 ./scripts/config --enable CONFIG_WLAN_VENDOR_MORSE
-./scripts/config --set-str CONFIG_MORSE_COUNTRY "US"  # Change to "EU" or "JP" if needed
+./scripts/config --set-str CONFIG_MORSE_COUNTRY "EU"  # Change to "US" or "JP" if needed
 
-# 4. Update the configuration file
+# 3. Update the configuration file
 make olddefconfig
 ```
 Verification: Run this to confirm the settings stuck:
 
 ```
-grep -E "S1G|MORSE" .config
+grep -E "MORSE" .config
 ```
 Output should show CONFIG_MAC80211_S1G=y and CONFIG_WLAN_VENDOR_MORSE=y (or m).
 
