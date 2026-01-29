@@ -30,10 +30,6 @@ mkdir -p drivers/net/wireless/morse
 git clone https://github.com/MorseMicro/morse_driver.git temp_driver
 cp -r temp_driver/* drivers/net/wireless/morse/
 rm -rf temp_driver
-
-# 3. Clone the Rate Control Submodule (Crucial Fix)
-# The driver will fail to build without this specific submodule
-git clone https://github.com/MorseMicro/mm_rate_control.git drivers/net/wireless/morse/mmrc-submodule
 ```
 ## 3. Patch the Source Code
 The current driver version has minor type mismatches (enum vs uint) that cause newer compilers (GCC 12+) to fail. Apply these patches to fix them.
@@ -84,7 +80,7 @@ Verification: Run this to confirm the settings stuck:
 ```
 grep -E "MORSE" .config
 ```
-Output should show CONFIG_MAC80211_S1G=y and CONFIG_WLAN_VENDOR_MORSE=y (or m).
+Output should show CONFIG_WLAN_VENDOR_MORSE=y (or m).
 
 ## 6. Build the Kernel
 Compile the kernel image, modules, and device trees. This takes 10-20 minutes on a Pi 5.
