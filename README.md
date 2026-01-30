@@ -19,7 +19,6 @@ We must use the specific Morse Micro branch that contains the required S1G (Sub-
 ```
 # Clone the specific Morse Micro branch (approx. 300MB)
 git clone --depth 1 -b mm/rpi-6.6.31/1.15.x https://github.com/MorseMicro/rpi-linux.git linux-morse
-
 cd linux-morse
 ```
 ### B. Setup the Driver Directory
@@ -73,7 +72,16 @@ make bcm2712_defconfig
 
 # 2. Enable the Morse Micro Driver
 ./scripts/config --enable CONFIG_WLAN_VENDOR_MORSE
+./scripts/config --enable CONFIG_MORSE_SDIO
+./scripts/config --enable CONFIG_MORSE_USB
+./scripts/config --enable CONFIG_MORSE_SDIO_ALIGNMENT "2"
+./scripts/config --enable CONFIG_MORSE_USER_ACCESS
+./scripts/config --enable CONFIG_MORSE_VENDOR_COMMAND
 ./scripts/config --set-str CONFIG_MORSE_COUNTRY "EU"  # Change to "US" or "JP" if needed
+./scripts/config --enable CONFIG_MORSE_DEBUG_MASK "8"
+./scripts/config --enable CONFIG_MORSE_SDIO_RESET_TIME "400"
+./scripts/config --enable CONFIG_MORSE_POWERSAVE_MODE "2"
+./scripts/config --enable CONFIG_MORSE_WATCHDOG_RESET_DEFAULT_DISABLED "y"
 
 # 3. Update the configuration file
 make olddefconfig
@@ -117,6 +125,7 @@ sudo mkdir -p /lib/firmware/morse
 
 # Copy firmware files from the driver source
 sudo cp drivers/net/wireless/morse/firmware/*.bin /lib/firmware/morse/
+sudo cp drivers/net/wireless/morse/bcf/morsemicro/bcf_boardtype_0804.bin /lib/firmware/morse/
 ```
 
 ## 8. Configure Boot and Reboot
