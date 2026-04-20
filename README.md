@@ -10,7 +10,7 @@ This guide details how to build the Morse Micro Wi-Fi HaLow driver "in-tree" for
 Update your system and install the required build tools.
 ```
 sudo apt update && sudo apt upgrade
-sudo apt install -y git bc bison flex libssl-dev make libc6-dev libncurses5-dev
+sudo apt install -y git bc bison flex libssl-dev make libc6-dev libncurses5-dev ansible
 ```
 This repository provides support for the Morse Micro MM8108 Wi-Fi HaLow module on the Raspberry Pi 5 and Compute Module 5 (CM5).
 
