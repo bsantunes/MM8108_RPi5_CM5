@@ -22,6 +22,6 @@ To install the kernel and the specific Morse Micro firmware defined in the confi
 
 1. Clone this repository:
    ```bash
-   git clone [https://github.com/bsantunes/MM8108_RPi5_CM5.git](https://github.com/bsantunes/MM8108_RPi5_CM5.git)
+   git clone https://github.com/bsantunes/MM8108_RPi5_CM5.git
    cd MM8108_RPi5_CM5/
    ansible-playbook  build_morse_8108.yml
