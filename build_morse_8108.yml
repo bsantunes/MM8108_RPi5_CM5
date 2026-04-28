@@ -202,16 +202,31 @@
             chdir: "{{ build_dir }}/halow_tools"
       tags: [halow_tools]
 
-    - name: Install Morse Micro Tools
-      shell: |
-        curl -L -O https://raw.githubusercontent.com/bsantunes/MM8108_RPi5_CM5/refs/heads/main/install_deb_morse.sh
-        chmod +x install_deb_morse.sh
-        ./install_deb_morse.sh
-      args:
-        chdir: "{{ build_dir }}"
-      tags: [morse_tools]
+    - name: Build Morse CLI Tool v1.16
+      steps:
+        - name: Install Morse CLI Dependencies
+          run: |
+            sudo apt update
+            sudo apt install -y build-essential pkg-config libnl-3-dev libnl-genl-3-dev libusb-1.0-0-dev
 
-    - name: Build Morse Micro Hostap and Wpa_supplicant
+        - name: Compile and Install morse_cli_s1g_1.16
+          run: |
+            # Navigate to the local directory
+            cd morse_cli
+          
+            # Build the tool
+            make clean
+            make -j$(nproc)
+          
+            # Rename to include version for consistency
+            mv morse_cli morse_cli_s1g_1.16
+          
+            # Install globally
+            sudo cp morse_cli_s1g_1.16 /usr/local/bin/
+          
+            echo "morse_cli_s1g_1.16 built successfully"
+
+    - name: Build Morse Micro hostap and wpa_supplicant
       steps:
         - name: Install Dependencies
           run: |
