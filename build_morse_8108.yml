@@ -166,6 +166,7 @@
               remote_src: yes
           loop:
               - { path: 'bcf/morsemicro/bcf_boardtype_0807.bin', name: 'bcf_boardtype_0807.bin' }
+              - { path: 'bcf/morsemicro/bcf_boardtype_0804.bin', name: 'bcf_boardtype_0804.bin' }
               - { path: 'firmware/mm8108b2-rl.bin',      name: 'mm8108b2-rl.bin' }
               - { path: 'firmware/mm8108b2-flm-rl.bin',  name: 'mm8108b2-flm-rl.bin' }
               - { path: 'firmware/mm8108b2-tlm-rl.bin',  name: 'mm8108b2-tlm-rl.bin' }
