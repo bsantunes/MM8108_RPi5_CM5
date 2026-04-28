@@ -1,0 +1,4 @@
+[submodule "hostap"]
+	path = hostap
+	url = https://github.com/MorseMicro/hostap.git
+	branch = v1.16
