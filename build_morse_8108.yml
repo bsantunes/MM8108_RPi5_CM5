@@ -25,6 +25,12 @@
           - make
           - libc6-dev
           - libncurses5-dev
+          - build-essential
+          - pkg-config
+          - libnl-3-dev
+          - libnl-genl-3-dev
+          - libusb-1.0-0-dev
+          - libreadline-dev
         state: present
         update_cache: yes
       tags: [dependencies]
@@ -204,38 +210,24 @@
 
     - name: Build Morse CLI Tool v1.16
       steps:
-        - name: Install Morse CLI Dependencies
-          run: |
-            sudo apt update
-            sudo apt install -y build-essential pkg-config libnl-3-dev libnl-genl-3-dev libusb-1.0-0-dev
-
         - name: Compile and Install morse_cli_s1g_1.16
           run: |
             # Navigate to the local directory
             cd morse_cli
-          
             # Build the tool
             make clean
-            make -j$(nproc)
-          
+            make -j$(nproc)          
             # Rename to include version for consistency
             mv morse_cli morse_cli_s1g_1.16
-          
             # Install globally
-            sudo cp morse_cli_s1g_1.16 /usr/local/bin/
-          
+            sudo cp morse_cli_s1g_1.16 /usr/sbin/  
             echo "morse_cli_s1g_1.16 built successfully"
 
     - name: Build Morse Micro hostap and wpa_supplicant
       steps:
-        - name: Install Dependencies
-          run: |
-            sudo apt update
-            sudo apt install -y build-essential pkg-config libssl-dev libnl-3-dev libnl-genl-3-dev libreadline-dev
-
         - name: Compile wpa_supplicant_s1g_1.16
           run: |
-            # Navigate into the hostap directory already in your repo
+            # Navigate into the hostap directory
             cd hostap/wpa_supplicant
             cp defconfig .config
             make -j$(nproc)
@@ -245,7 +237,7 @@
 
         - name: Compile hostapd_s1g_1.16
           run: |
-            # Navigate into the hostap directory already in your repo
+            # Navigate into the hostap directory
             cd hostap/hostapd
             cp defconfig .config
             make -j$(nproc)
