@@ -211,6 +211,33 @@
         chdir: "{{ build_dir }}"
       tags: [morse_tools]
 
+    - name: Build Morse Micro Hostap and Wpa_supplicant
+      steps:
+        - name: Install Dependencies
+          run: |
+            sudo apt update
+            sudo apt install -y build-essential pkg-config libssl-dev libnl-3-dev libnl-genl-3-dev libreadline-dev
+
+        - name: Compile wpa_supplicant_s1g_1.16
+          run: |
+            # Navigate into the hostap directory already in your repo
+            cd hostap/wpa_supplicant
+            cp defconfig .config
+            make -j$(nproc)
+            mv wpa_supplicant wpa_supplicant_s1g_1.16
+            # Optional: install it globally
+            sudo cp wpa_supplicant_s1g_1.16 /usr/sbin/
+
+        - name: Compile hostapd_s1g_1.16
+          run: |
+            # Navigate into the hostap directory already in your repo
+            cd hostap/hostapd
+            cp defconfig .config
+            make -j$(nproc)
+            mv hostapd hostapd_s1g_1.16
+            # Optional: install it globally
+            sudo cp hostapd_s1g_1.16 /usr/sbin/
+
     - name: Notify user to reboot
       debug:
         msg: 
