@@ -2,3 +2,7 @@
 	path = hostap
 	url = https://github.com/MorseMicro/hostap.git
 	branch = v1.16
+[submodule "morse_cli"]
+	path = morse_cli
+	url = https://github.com/MorseMicro/morse_cli.git
+	branch = 1.16
