@@ -12,7 +12,6 @@
     driver_repo: "https://github.com/MorseMicro/morse_driver.git"
     firmware_repo: "https://github.com/MorseMicro/morse-firmware.git"
     halow_tools_repo: "https://github.com/bsantunes/Halow"
-      # Added missing repositories
     cli_repo: "https://github.com/MorseMicro/morse_cli.git"
     hostap_repo: "https://github.com/MorseMicro/hostap.git"
 
