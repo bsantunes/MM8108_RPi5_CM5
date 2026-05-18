@@ -1,5 +1,5 @@
 ---
-- name: Build and Install Morse Micro 8108 Driver (Debian 13 Optimized)
+- name: Build and Install Morse Micro 8108 Driver
   hosts: localhost
   connection: local
   become: true
@@ -12,6 +12,9 @@
     driver_repo: "https://github.com/MorseMicro/morse_driver.git"
     firmware_repo: "https://github.com/MorseMicro/morse-firmware.git"
     halow_tools_repo: "https://github.com/bsantunes/Halow"
+      # Added missing repositories
+    cli_repo: "https://github.com/MorseMicro/morse_cli.git"
+    hostap_repo: "https://github.com/MorseMicro/hostap.git"
 
   tasks:
     - name: Install build dependencies
@@ -29,6 +32,7 @@
           - pkg-config
           - libnl-3-dev
           - libnl-genl-3-dev
+          - libnl-route-3-dev
           - libusb-1.0-0-dev
           - libreadline-dev
         state: present
@@ -185,7 +189,7 @@
         line: 'kernel=kernel_morse.img'
         state: present
       tags: [bootconfig]
-          
+
     - name: Build and Install Custom HaLow Tools (Scripts)
       block:
         - name: Clone HaLow Tools Repo
@@ -205,36 +209,53 @@
       tags: [halow_tools]
 
     - name: Build Morse CLI Tool v1.16
-      shell: |
-        cd {{ build_dir }}/temp_driver/morse_cli
-        make clean
-        make -j$(nproc)          
-        mv morse_cli morse_cli_s1g_1.16
-        cp morse_cli_s1g_1.16 /usr/sbin/
+      block:
+        - name: Clone Morse CLI Repository
+          git:
+            repo: "{{ cli_repo }}"
+            dest: "{{ build_dir }}/morse_cli"
+            depth: 1
+
+        - name: Compile and Install Morse CLI
+          shell: |
+            make clean
+            make -j$(nproc)
+            mv morse_cli morse_cli_s1g_1.16
+            cp morse_cli_s1g_1.16 /usr/sbin/
+          args:
+            chdir: "{{ build_dir }}/morse_cli"
       tags: [cli]
 
     - name: Build Morse Micro hostap and wpa_supplicant
       block:
+        - name: Clone Morse hostap Repository
+          git:
+            repo: "{{ hostap_repo }}"
+            dest: "{{ build_dir }}/hostap"
+            depth: 1
+
         - name: Compile wpa_supplicant_s1g_1.16
           shell: |
-            cd {{ build_dir }}/temp_driver/hostap/wpa_supplicant
             cp defconfig .config
-            make -j$(nproc)
-            mv wpa_supplicant wpa_supplicant_s1g_1.16
+            make -j$(nproc) EXTRA_CFLAGS+="-Wno-error=deprecated-declarations"
+            mv wpa_supplicant_s1g wpa_supplicant_s1g_1.16
             cp wpa_supplicant_s1g_1.16 /usr/sbin/
+          args:
+            chdir: "{{ build_dir }}/hostap/wpa_supplicant"
 
         - name: Compile hostapd_s1g_1.16
           shell: |
-            cd {{ build_dir }}/temp_driver/hostap/hostapd
             cp defconfig .config
-            make -j$(nproc)
-            mv hostapd hostapd_s1g_1.16
+            make -j$(nproc) EXTRA_CFLAGS+="-Wno-error=deprecated-declarations"
+            mv hostapd_s1g hostapd_s1g_1.16
             cp hostapd_s1g_1.16 /usr/sbin/
+          args:
+            chdir: "{{ build_dir }}/hostap/hostapd"
       tags: [hostap]
 
     - name: Notify user to reboot
       debug:
-        msg: 
+        msg:
           - "------------------------------------------------------------"
           - "KERNEL BUILD AND INSTALLATION SUCCESSFUL!"
           - "Custom Kernel: {{ kernel_version }}{{ custom_suffix }}"
