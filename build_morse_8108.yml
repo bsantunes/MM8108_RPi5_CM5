@@ -167,15 +167,15 @@
 
         - name: Install Specific Firmware Files
           copy:
-              src: "{{ build_dir }}/morse-firmware/{{ item.path }}"
-              dest: "/lib/firmware/morse/{{ item.name }}"
-              remote_src: yes
+            src: "{{ build_dir }}/morse-firmware/{{ item.path }}"
+            dest: "/lib/firmware/morse/{{ item.name }}"
+            remote_src: yes
           loop:
-              - { path: 'bcf/morsemicro/bcf_boardtype_0807.bin', name: 'bcf_boardtype_0807.bin' }
-              - { path: 'bcf/morsemicro/bcf_boardtype_0804.bin', name: 'bcf_boardtype_0804.bin' }
-              - { path: 'firmware/mm8108b2-rl.bin',      name: 'mm8108b2-rl.bin' }
-              - { path: 'firmware/mm8108b2-flm-rl.bin',  name: 'mm8108b2-flm-rl.bin' }
-              - { path: 'firmware/mm8108b2-tlm-rl.bin',  name: 'mm8108b2-tlm-rl.bin' }
+            - { path: 'bcf/morsemicro/bcf_boardtype_0807.bin', name: 'bcf_boardtype_0807.bin' }
+            - { path: 'bcf/morsemicro/bcf_boardtype_0804.bin', name: 'bcf_boardtype_0804.bin' }
+            - { path: 'firmware/mm8108b2-rl.bin',      name: 'mm8108b2-rl.bin' }
+            - { path: 'firmware/mm8108b2-flm-rl.bin',  name: 'mm8108b2-flm-rl.bin' }
+            - { path: 'firmware/mm8108b2-tlm-rl.bin',  name: 'mm8108b2-tlm-rl.bin' }
       tags: [firmware]
 
     - name: Update config.txt to boot new kernel
@@ -198,52 +198,39 @@
 
         - name: Make Scripts Executable and Link to /usr/local/bin
           shell: |
-            # Make all files in the repo executable
             chmod +x wifi-*.sh halow
-            
-            # Create symbolic links in /usr/local/bin for every file in this dir
-            # This allows you to run the scripts from anywhere
-            ln -sf {{ build_dir }}/halow_tools/* /usr/local/bin/
+            find . -maxdepth 1 -type f -exec ln -sf {{ build_dir }}/halow_tools/{} /usr/local/bin/ \;
           args:
             chdir: "{{ build_dir }}/halow_tools"
       tags: [halow_tools]
 
     - name: Build Morse CLI Tool v1.16
-      steps:
-        - name: Compile and Install morse_cli_s1g_1.16
-          run: |
-            # Navigate to the local directory
-            cd morse_cli
-            # Build the tool
-            make clean
-            make -j$(nproc)          
-            # Rename to include version for consistency
-            mv morse_cli morse_cli_s1g_1.16
-            # Install globally
-            sudo cp morse_cli_s1g_1.16 /usr/sbin/  
-            echo "morse_cli_s1g_1.16 built successfully"
+      shell: |
+        cd {{ build_dir }}/temp_driver/morse_cli
+        make clean
+        make -j$(nproc)          
+        mv morse_cli morse_cli_s1g_1.16
+        cp morse_cli_s1g_1.16 /usr/sbin/
+      tags: [cli]
 
     - name: Build Morse Micro hostap and wpa_supplicant
-      steps:
+      block:
         - name: Compile wpa_supplicant_s1g_1.16
-          run: |
-            # Navigate into the hostap directory
-            cd hostap/wpa_supplicant
+          shell: |
+            cd {{ build_dir }}/temp_driver/hostap/wpa_supplicant
             cp defconfig .config
             make -j$(nproc)
             mv wpa_supplicant wpa_supplicant_s1g_1.16
-            # Optional: install it globally
-            sudo cp wpa_supplicant_s1g_1.16 /usr/sbin/
+            cp wpa_supplicant_s1g_1.16 /usr/sbin/
 
         - name: Compile hostapd_s1g_1.16
-          run: |
-            # Navigate into the hostap directory
-            cd hostap/hostapd
+          shell: |
+            cd {{ build_dir }}/temp_driver/hostap/hostapd
             cp defconfig .config
             make -j$(nproc)
             mv hostapd hostapd_s1g_1.16
-            # Optional: install it globally
-            sudo cp hostapd_s1g_1.16 /usr/sbin/
+            cp hostapd_s1g_1.16 /usr/sbin/
+      tags: [hostap]
 
     - name: Notify user to reboot
       debug:
